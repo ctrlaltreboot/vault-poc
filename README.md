@@ -10,7 +10,8 @@ using this (or even using this at all).
 
 This is highly developmental and in no way production material *wink*
 
-### Requirements
+Requirements
+------------
 - You need to install Consul
 - You need to install Vault
 - You'd need to create a Github Organization with corresponding teams that
@@ -21,14 +22,15 @@ This is highly developmental and in no way production material *wink*
   token](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line)
   This is used un the authentication phase.
 
-### Usage
+Usage
+-----
 After all the prerequisites have been created, run the script in phases.
 
 ```
 ./vault-poc.sh <phase>
 ```
 
-#### Phase 1
+### Phase 1
 This is the initialization phase where:
 - A development instance of Consul started
 - An instance of Vault is started
