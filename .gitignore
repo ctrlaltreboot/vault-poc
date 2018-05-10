@@ -1,0 +1,6 @@
+**/logs
+**/pids
+**/.secret
+**/.token
+.token
+operator_init.secret
