@@ -38,3 +38,19 @@ This is the initialization phase where:
 
 This phase also ends with instructions on how to manually unseal and
 login with the initial root token
+
+### Phase 2
+This is the authentication method enabling phase. For this exercise,
+GitHub is chosen as the authentication mechanism. This phase configures
+the authorization organization that will be written to the
+authentication configuration for GitHub.
+
+### Phase 3
+This is a mix of authentication and authorization tasks.
+- Pre-written policies are checked via `vault policy fmt`
+- These policies are added in and assigned to be mapped onto
+  corresponding GitHub teams
+
+### Phase 4
+This is trying out the GitHub authentication by logging in and trying
+out the commands echoed out in as examples.
