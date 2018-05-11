@@ -182,12 +182,8 @@ case "$1" in
   phase4)
     phase4
     ;;
-  all)
-    stop
-    all
-    ;;
   *)
-    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|all}"
+    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4}"
     exit
     ;;
 esac
