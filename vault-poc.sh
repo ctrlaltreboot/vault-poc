@@ -32,6 +32,9 @@ N00BSPOLICY=$POLICYDIR/n00bs-policy.hcl
 #
 start_consul_dev() {
   echo 'Starting Dev Consul Instance'
+  # start a consule dev server
+  # pushing all output to a log file
+  # and writing the process id (represented by $!) into a file
   consul agent -dev &> $LOGDIR/consul.dev.log & echo $! > $CONSULPID
 }
 
@@ -42,10 +45,14 @@ start_vault() {
 
 init_vault() {
   echo 'Operator Initialization on Vault Server'
+  # save all operation initialization information into a file
   vault operator init &> $SECRET
 }
 
 set_secrets() {
+  # this function reads the saved operator initialization information
+  # the information is then parsed and saved into variable corresponding
+  # to the 5 unseal keys and the root token
   SECRET=.operator.secret
   if [[ -e $SECRET ]] && [[ -s $SECRET ]]; then
     SECRET1=$(head -7 $SECRET | head -1 | awk '{print $4}' | xargs)
@@ -119,9 +126,7 @@ phase1() {
   unseal
   login
 }
-#
 # end of phase 1
-#
 
 #
 # phase 2 is enabling github as authentication provider
@@ -140,25 +145,31 @@ phase2() {
   authn_enable_github
   authn_define_github
 }
-#
 # end of phase 2
-#
 
 #
 # phase 3 is when admin and n00b policies are written to vault
 # and mapped out to their respective teams
 #
+authn_define_policy() {
+  # this is a helper function for verifying
+  # and writing the policy
+  # takes 1 argument - the policy file path
+  local POLICY=$1 # takes the 1st argument and assigns to local var POLICY
+
+  # exit if the policy document is missing
+  [[ ! -e $POLICY ]] && exit
+  vault policy fmt $POLICY
+  vault policy write admin-policy $POLICY
+}
+
 authn_define_policy_admin_team() {
   # exit if the admin policy document is missing
-  [[ ! -e $ADMINPOLICY ]] && exit
-  vault policy fmt $ADMINPOLICY
-  vault policy write admin-policy $ADMINPOLICY
+  authn_define_policy $ADMINPOLICY
 }
 
 authn_define_policy_admin_n00bs() {
-  [[ ! -e $N00BSPOLICY ]] && exit
-  vault policy fmt $N00BSPOLICY
-  vault policy write n00bs-policy $N00BSPOLICY
+  authn_define_policy $N00BSPOLICY
 }
 
 authn_map_admin_policy() {
@@ -175,9 +186,7 @@ phase3() {
   authn_map_admin_policy
   authn_map_n00bs_policy
 }
-#
 # end of phase 3
-#
 
 #
 # phase 4 - Try it out!
@@ -229,6 +238,7 @@ approle_create_role() {
 
 approle_fetch_roleid() {
   echo 'Fetch the RoleID for funapproll'
+  # the fetched information is written both to stdout and a file using the tee ulititee
   vault read auth/approle/role/funapproll/role-id | tee .funapproll.roleid
   echo
 }
@@ -248,7 +258,23 @@ phase5() {
   approle_fetch_roleid
   approle_fetch_secretid
 }
+# end of phase 5
 
+#
+# phase 6 - AppRole and Authorization
+#
+
+# funrollapp policy files definition
+FUNAPPROLLADMINPOLICY=$POLICYDIR/funapproll-admin-policy.hcl
+FUNAPPROLLCLIENTPOLICY=$POLICYDIR/funapproll-client-policy.hcl
+
+authn_define_policy_funapproll_admin() {
+  authn_define_policy $FUNAPPROLLADMINPOLICY
+}
+
+authn_define_policy_funapproll_client() {
+  authn_define_policy $FUNAPPROLLCLIENTPOLICY
+}
 
 #
 # helper functions
