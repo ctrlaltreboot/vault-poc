@@ -3,6 +3,11 @@
 # exit whenever any errors come up
 set -e
 
+# autounseal
+: ${AUTOUNSEAL:='no'}
+# autologin
+: ${AUTOLOGIN:='no'}
+
 # process id definition
 PIDDIR=$(pwd)/pids
 CONSULPID=$PIDDIR/consul.pid
@@ -37,15 +42,70 @@ start_vault() {
 
 init_vault() {
   echo 'Operator Initialization on Vault Server'
-  vault operator init &> operator_init.secret
+  vault operator init &> $SECRET
+}
+
+set_secrets() {
+  SECRET=.operator.secret
+  if [[ -e $SECRET ]] && [[ -s $SECRET ]]; then
+    SECRET1=$(head -7 $SECRET | head -1 | awk '{print $4}' | xargs)
+    SECRET2=$(head -7 $SECRET | head -2 | tail -1 | awk '{print $4}' | xargs)
+    SECRET3=$(head -7 $SECRET | head -3 | tail -1 | awk '{print $4}' | xargs)
+    SECRET4=$(head -7 $SECRET | head -4 | tail -1 | awk '{print $4}' | xargs)
+    SECRET5=$(head -7 $SECRET | head -5 | tail -1 | awk '{print $4}' | xargs)
+    ROOTSECRET=$(head -7 $SECRET | tail -1 | awk '{print $4}' | xargs)
+  fi
 }
 
 unseal_message() {
   echo 'After operator initilization, you need to unseal the vault 3 times'
   echo 'Run `export VAULT_ADDR="http://127.0.0.1:8200"`'
   echo 'Run `vault operator unseal`'
+}
+
+login_message() {
   echo 'When unsealed, initial login will be via the `root` token'
   echo 'Run `vault login <root-token>`'
+}
+
+autounseal() {
+  set_secrets
+  echo 'After operator initilization, you need to unseal the vault 3 times'
+  echo 'AUTOUNSEAL is set to yes, automatically unsealing. DO NOT DO THIS IN PRODUCTION'
+  echo 'First Unseal Attempt...'
+  vault operator unseal "$SECRET1"
+  echo
+  echo 'Second Unseal Attempt...'
+  vault operator unseal "$SECRET3"
+  echo
+  echo 'Final Unseal Attempt...'
+  vault operator unseal "$SECRET5"
+  echo
+}
+
+autologin() {
+  set_secrets
+  echo 'Automatically login using the root token.'
+  echo 'DO NOT DO THIS IN PRODUCTION'
+  vault login "$ROOTSECRET"
+  echo
+}
+
+unseal() {
+  if [[ "$AUTOUNSEAL" == "yes" ]]; then
+    autounseal
+  else
+    unseal_message
+  fi
+}
+
+login() {
+  if [[ "$AUTOLOGIN" == "yes" ]]; then
+    echo 'AUTOLOGIN is set to yes'
+    autologin
+  else
+    login_message
+  fi
 }
 
 phase1() {
@@ -55,8 +115,9 @@ phase1() {
   sleep 1
   export VAULT_ADDR='http://127.0.0.1:8200'
   init_vault
-  sleep 1
-  unseal_message
+  sleep 2
+  unseal
+  login
 }
 #
 # end of phase 1
@@ -119,7 +180,7 @@ phase3() {
 #
 
 #
-# phase 4 -try it out!
+# phase 4 - Try it out!
 #
 authn_github_login() {
   echo 'You must create a Github token before attempting to login'
@@ -145,6 +206,49 @@ phase4(){
   authz_write_fail
 }
 # end of phase 4
+
+#
+# phase 5 - AppRole
+#
+authn_enable_approle() {
+  echo 'Enable AppRole authentication'
+  vault auth enable approle
+  echo
+}
+
+approle_create_role() {
+  echo 'Create and example role, funapproll'
+  vault write auth/approle/role/funapproll \
+    secret_id_ttl=10m \
+    token_num_uses=10 \
+    token_ttl=20m \
+    token_max_ttl=30m \
+    secret_id_num_uses=40
+  echo
+}
+
+approle_fetch_roleid() {
+  echo 'Fetch the RoleID for funapproll'
+  vault read auth/approle/role/funapproll/role-id | tee .funapproll.roleid
+  echo
+}
+
+approle_fetch_secretid() {
+  echo 'Fetch the SecretID for funapproll'
+  vault write -f auth/approle/role/funapproll/secret-id | tee .funapproll.secretid
+  echo
+}
+
+phase5() {
+  echo 'Need to re-login w/ the root token to enable AppRole'
+  echo 'vault login <root-token-here>'
+  autologin
+  authn_enable_approle
+  approle_create_role
+  approle_fetch_roleid
+  approle_fetch_secretid
+}
+
 
 #
 # helper functions
@@ -182,8 +286,11 @@ case "$1" in
   phase4)
     phase4
     ;;
+  phase5)
+    phase5
+    ;;
   *)
-    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4}"
+    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5}"
     exit
     ;;
 esac

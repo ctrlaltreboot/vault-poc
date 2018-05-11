@@ -1,6 +1,13 @@
 **/logs
 **/pids
 **/.secret
+**/.secret*
+**/*.secret*
 **/.token
-.token
-operator_init.secret
+**/.funapproll*
+.token*
+.secret*
+.*secret*
+.funapproll*
+.*roleid
+.*secretid
