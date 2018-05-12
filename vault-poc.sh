@@ -27,6 +27,10 @@ N00BSPOLICY=$POLICYDIR/n00bs-policy.hcl
 [[ ! -e $PIDDIR ]] && mkdir -pv $PIDDIR
 [[ ! -e $LOGDIR ]] && mkdir -pv $LOGDIR
 
+# define where the operator initialization information
+# would be saved unto...
+SECRET=.operator.secret
+
 #
 # phase 1 is the initialization phase
 #
@@ -53,7 +57,6 @@ set_secrets() {
   # this function reads the saved operator initialization information
   # the information is then parsed and saved into variable corresponding
   # to the 5 unseal keys and the root token
-  SECRET=.operator.secret
   if [[ -e $SECRET ]] && [[ -s $SECRET ]]; then
     SECRET1=$(head -7 $SECRET | head -1 | awk '{print $4}' | xargs)
     SECRET2=$(head -7 $SECRET | head -2 | tail -1 | awk '{print $4}' | xargs)
@@ -151,25 +154,19 @@ phase2() {
 # phase 3 is when admin and n00b policies are written to vault
 # and mapped out to their respective teams
 #
-authn_define_policy() {
-  # this is a helper function for verifying
-  # and writing the policy
-  # takes 1 argument - the policy file path
-  local POLICY=$1 # takes the 1st argument and assigns to local var POLICY
-
-  # exit if the policy document is missing
-  [[ ! -e $POLICY ]] && exit
-  vault policy fmt $POLICY
-  vault policy write admin-policy $POLICY
-}
 
 authn_define_policy_admin_team() {
-  # exit if the admin policy document is missing
-  authn_define_policy $ADMINPOLICY
+  # exit if the policy document is missing
+  [[ ! -e $ADMINPOLICY ]] && exit
+  vault policy fmt $ADMINPOLICY
+  vault policy write admin-policy $ADMINPOLICY
 }
 
 authn_define_policy_admin_n00bs() {
-  authn_define_policy $N00BSPOLICY
+  # exit if the policy document is missing
+  [[ ! -e $N00BSPOLICY ]] && exit
+  vault policy fmt $N00BSPOLICY
+  vault policy write n00bs-policy $N00BSPOLICY
 }
 
 authn_map_admin_policy() {
@@ -265,15 +262,39 @@ phase5() {
 #
 
 # funrollapp policy files definition
-FUNAPPROLLADMINPOLICY=$POLICYDIR/funapproll-admin-policy.hcl
-FUNAPPROLLCLIENTPOLICY=$POLICYDIR/funapproll-client-policy.hcl
+FUNAPPROLLADMINPOLICY=$POLICYDIR/funapproll-admin.hcl
+FUNAPPROLLCLIENTPOLICY=$POLICYDIR/funapproll-client.hcl
 
+# check and write the funapproll polices into vault
 authn_define_policy_funapproll_admin() {
-  authn_define_policy $FUNAPPROLLADMINPOLICY
+  # exit if the policy document is missing
+  [[ ! -e $FUNAPPROLLADMINPOLICY ]] && exit
+  vault policy fmt $FUNAPPROLLADMINPOLICY
+  vault policy write funapprolladmin-policy $FUNAPPROLLADMINPOLICY
 }
 
 authn_define_policy_funapproll_client() {
-  authn_define_policy $FUNAPPROLLCLIENTPOLICY
+  # exit if the policy document is missing
+  [[ ! -e $FUNAPPROLLCLIENTPOLICY ]] && exit
+  vault policy fmt $FUNAPPROLLCLIENTPOLICY
+  vault policy write funapprollclient-policy $FUNAPPROLLCLIENTPOLICY
+}
+
+# update the funapproll role policies
+authn_update_funapproll_policy() {
+  vault write auth/approle/role/funapproll/policies policies=default,funapprolladmin-policy,funapprollclient-policy
+}
+
+# check the current list of polices for the funapproll role
+authn_check_funapproll_policy() {
+  vault list auth/approle/role/funapproll/policies
+}
+
+phase6() {
+  authn_define_policy_funapproll_admin
+  authn_define_policy_funapproll_client
+  authn_update_funapproll_policy
+  authn_check_funapproll_policy
 }
 
 #
@@ -315,8 +336,11 @@ case "$1" in
   phase5)
     phase5
     ;;
+  phase6)
+    phase6
+    ;;
   *)
-    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5}"
+    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5|phase6}"
     exit
     ;;
 esac
