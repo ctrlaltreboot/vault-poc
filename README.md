@@ -31,26 +31,43 @@ After all the prerequisites have been created, run the script in phases.
 ```
 
 ### Phase 1
-This is the initialization phase where:
+#### Server Startup and Initialization
 - A development instance of Consul started
 - An instance of Vault is started
 - Vault is operationally initialized
-
-This phase also ends with instructions on how to manually unseal and
-login with the initial root token
+- This phase ends with either instructions on how to manually unseal
+  and  login with the initial root token displayed or auto-unsealing
+  and auto-login w/ the root token. These are determined by the
+  environment variables `AUTOUNSEAL (default 'no')` and `AUTOLOGIN
+  (default 'no')`
 
 ### Phase 2
-This is the authentication method enabling phase. For this exercise,
-GitHub is chosen as the authentication mechanism. This phase configures
-the authorization organization that will be written to the
-authentication configuration for GitHub.
+#### GitHub Authentication
+This is the authentication method enabling phase.
+- Enables GitHub authentication
+- Configures the organization in Github for authorization reference
 
 ### Phase 3
-This is a mix of authentication and authorization tasks.
-- Pre-written policies are checked via `vault policy fmt`
-- These policies are added in and assigned to be mapped onto
-  corresponding GitHub teams
+#### Policies and Authorization
+- Check and verify policies
+- Add and assign policies, mapped into
+  their corresponding GitHub teams
 
 ### Phase 4
-This is trying out the GitHub authentication by logging in and trying
-out the commands echoed out in as examples.
+#### GitHub authentication practice
+- Trying out the GitHub authentication by logging in and trying
+out the commands echoed out
+
+### Phase 5
+#### AppRole
+- Enable AppRole authentication method
+- Create an example role
+- Fetch and show RoleID
+- Fetch and show SecretID
+
+### Phase 6
+#### AppRole Policy
+- Create and write new polices
+- Attach new policies to example role created in phase5
+- Verify role and policies
+
