@@ -120,12 +120,12 @@ login() {
 
 phase1() {
   start_consul_dev
-  sleep 1
+  sleep 2
   start_vault
-  sleep 1
+  sleep 2
   export VAULT_ADDR='http://127.0.0.1:8200'
   init_vault
-  sleep 2
+  sleep 3
   unseal
   login
 }
