@@ -136,12 +136,16 @@ phase1() {
 # and defining the organization to identify/authenticate to
 #
 authn_enable_github() {
+  echo 'Enable GitHub authentication'
   vault auth enable github
+  echo
 }
 
 authn_define_github() {
   local ORG=${ORG:="hobodevops"}
+  echo 'Write GitHub organization config'
   vault write auth/github/config organization=$ORG
+  echo
 }
 
 phase2() {
@@ -158,23 +162,31 @@ phase2() {
 authn_define_policy_admin_team() {
   # exit if the policy document is missing
   [[ ! -e $ADMINPOLICY ]] && exit
+  echo 'Check and write the admin policy document'
   vault policy fmt $ADMINPOLICY
   vault policy write admin-policy $ADMINPOLICY
+  echo
 }
 
 authn_define_policy_admin_n00bs() {
   # exit if the policy document is missing
   [[ ! -e $N00BSPOLICY ]] && exit
+  echo 'Check and write the n00bs policy document'
   vault policy fmt $N00BSPOLICY
   vault policy write n00bs-policy $N00BSPOLICY
+  echo
 }
 
 authn_map_admin_policy() {
+  echo 'Assign the admin policy to the admin team from the GitHub configured organization'
   vault write auth/github/map/teams/admin value=default,admin-policy
+  echo
 }
 
 authn_map_n00bs_policy() {
+  echo 'Assign the n00bs policy to the n00bs team from the GitHub configured organization'
   vault write auth/github/map/teams/n00bs value=default,n00bs-policy
+  echo
 }
 
 phase3() {
@@ -192,6 +204,7 @@ authn_github_login() {
   echo 'You must create a Github token before attempting to login'
   echo 'https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/'
   vault login -method=github
+  echo
 }
 
 authz_write_secret() {
@@ -223,7 +236,7 @@ authn_enable_approle() {
 }
 
 approle_create_role() {
-  echo 'Create and example role, funapproll'
+  echo 'Create an example role: funapproll'
   vault write auth/approle/role/funapproll \
     secret_id_ttl=10m \
     token_num_uses=10 \
@@ -269,25 +282,33 @@ FUNAPPROLLCLIENTPOLICY=$POLICYDIR/funapproll-client.hcl
 authn_define_policy_funapproll_admin() {
   # exit if the policy document is missing
   [[ ! -e $FUNAPPROLLADMINPOLICY ]] && exit
+  echo 'Check and write the funapproll admin policy'
   vault policy fmt $FUNAPPROLLADMINPOLICY
   vault policy write funapprolladmin-policy $FUNAPPROLLADMINPOLICY
+  echo
 }
 
 authn_define_policy_funapproll_client() {
   # exit if the policy document is missing
   [[ ! -e $FUNAPPROLLCLIENTPOLICY ]] && exit
+  echo 'Check and write the funapproll client policy'
   vault policy fmt $FUNAPPROLLCLIENTPOLICY
   vault policy write funapprollclient-policy $FUNAPPROLLCLIENTPOLICY
+  echo
 }
 
 # update the funapproll role policies
 authn_update_funapproll_policy() {
+  echo 'Write the policies for the funapproll role'
   vault write auth/approle/role/funapproll/policies policies=default,funapprolladmin-policy,funapprollclient-policy
+  echo
 }
 
 # check the current list of polices for the funapproll role
 authn_check_funapproll_policy() {
-  vault list auth/approle/role/funapproll/policies
+  echo 'Read attributes of the funapproll,check policies exist'
+  vault read auth/approle/role/funapproll
+  echo
 }
 
 phase6() {
