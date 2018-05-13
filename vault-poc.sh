@@ -229,6 +229,12 @@ phase4(){
 #
 # phase 5 - AppRole
 #
+
+# define variables for files where roleid and secretid
+# information will be saved
+APPROLE_ROLEID=".funapproll.roleid"
+APPROLE_SECRETID=".funapproll.secretid"
+
 authn_enable_approle() {
   echo 'Enable AppRole authentication'
   vault auth enable approle
@@ -249,13 +255,13 @@ approle_create_role() {
 approle_fetch_roleid() {
   echo 'Fetch the RoleID for funapproll'
   # the fetched information is written both to stdout and a file using the tee ulititee
-  vault read auth/approle/role/funapproll/role-id | tee .funapproll.roleid
+  vault read auth/approle/role/funapproll/role-id | tee $APPROLE_ROLEID
   echo
 }
 
 approle_fetch_secretid() {
   echo 'Fetch the SecretID for funapproll'
-  vault write -f auth/approle/role/funapproll/secret-id | tee .funapproll.secretid
+  vault write -f auth/approle/role/funapproll/secret-id | tee $APPROLE_SECRETID
   echo
 }
 
@@ -275,25 +281,25 @@ phase5() {
 #
 
 # funrollapp policy files definition
-FUNAPPROLLADMINPOLICY=$POLICYDIR/funapproll-admin.hcl
-FUNAPPROLLCLIENTPOLICY=$POLICYDIR/funapproll-client.hcl
+FUNAPPROLL_ADMINPOLICY=$POLICYDIR/funapproll-admin.hcl
+FUNAPPROLL_CLIENTPOLICY=$POLICYDIR/funapproll-client.hcl
 
 # check and write the funapproll polices into vault
 authn_define_policy_funapproll_admin() {
   # exit if the policy document is missing
-  [[ ! -e $FUNAPPROLLADMINPOLICY ]] && exit
+  [[ ! -e $FUNAPPROLL_ADMINPOLICY ]] && exit
   echo 'Check and write the funapproll admin policy'
-  vault policy fmt $FUNAPPROLLADMINPOLICY
-  vault policy write funapprolladmin-policy $FUNAPPROLLADMINPOLICY
+  vault policy fmt $FUNAPPROLL_ADMINPOLICY
+  vault policy write funapprolladmin-policy $FUNAPPROLL_ADMINPOLICY
   echo
 }
 
 authn_define_policy_funapproll_client() {
   # exit if the policy document is missing
-  [[ ! -e $FUNAPPROLLCLIENTPOLICY ]] && exit
+  [[ ! -e $FUNAPPROLL_CLIENTPOLICY ]] && exit
   echo 'Check and write the funapproll client policy'
-  vault policy fmt $FUNAPPROLLCLIENTPOLICY
-  vault policy write funapprollclient-policy $FUNAPPROLLCLIENTPOLICY
+  vault policy fmt $FUNAPPROLL_CLIENTPOLICY
+  vault policy write funapprollclient-policy $FUNAPPROLL_CLIENTPOLICY
   echo
 }
 
@@ -317,6 +323,39 @@ phase6() {
   authn_update_funapproll_policy
   authn_check_funapproll_policy
 }
+
+#
+# phase 7 - AppRole Test
+#
+APPROLE_LOGIN_RESPONSE=".funapproll.login.json"
+
+approle_login() {
+  [[ ! -e $APPROLE_ROLEID ]] && exit
+  ROLEID="$(tail -1 $APPROLE_ROLEID | awk '{print $2}' | xargs)"
+
+  [[ ! -e $APPROLE_SECRETID ]] && exit
+  SECRETID="$( tail -2 $APPROLE_SECRETID | head -1 | awk '{print $2}' | xargs)"
+
+  # authentiction to vault using funapproll role
+  echo 'Authenticating to vault using funapproll role_id and secret_id'
+  curl \
+    --request POST \
+    --data '{"role_id":"'$ROLEID'","secret_id":"'$SECRETID'"}' \
+    http://127.0.0.1:8200/v1/auth/approle/login | tee "$APPROLE_LOGIN_RESPONSE"
+  echo
+}
+
+approle_read_login() {
+  cat "$APPROLE_LOGIN_RESPONSE" | jq '. | {client_token: .auth.client_token}'
+}
+
+phase7() {
+  # secret ids have ttl, so we need to re-fetch
+  approle_fetch_secretid
+  approle_login
+  approle_read_login
+}
+
 
 #
 # helper functions
@@ -359,6 +398,9 @@ case "$1" in
     ;;
   phase6)
     phase6
+    ;;
+  phase7)
+    phase7
     ;;
   *)
     echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5|phase6}"
