@@ -420,7 +420,7 @@ case "$1" in
     phase7
     ;;
   *)
-    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5|phase6}"
+    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5|phase6|phase7}"
     exit
     ;;
 esac
