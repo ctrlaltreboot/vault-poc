@@ -3,9 +3,9 @@
 # exit whenever any errors come up
 set -e
 
-# autounseal
+# autounseal?
 : ${AUTO_UNSEAL:='no'}
-# autologin
+# autologin?
 : ${AUTO_LOGIN:='no'}
 
 # process id definition
@@ -18,7 +18,6 @@ LOG_DIR=$(pwd)/logs
 
 # policy directory definition
 POLICY_DIR=$(pwd)/policies
-
 
 # create directories if they're missing
 [[ ! -e "$PID_DIR" ]] && mkdir -pv "$PID_DIR"
@@ -132,6 +131,10 @@ phase1() {
 # phase 2 is enabling github as authentication provider
 # and defining the organization to identify/authenticate to
 #
+
+# github authentication related variables
+: ${GITHUB_ORG:="hobodevops"}
+
 authn_enable_github() {
   echo 'Enable GitHub authentication'
   vault auth enable github
@@ -139,9 +142,8 @@ authn_enable_github() {
 }
 
 authn_define_github() {
-  local ORG=${ORG:="hobodevops"}
   echo 'Write GitHub organization config'
-  vault write auth/github/config organization=$ORG
+  vault write auth/github/config organization="$GITHUB_ORG"
   echo
 }
 
@@ -155,66 +157,92 @@ phase2() {
 # phase 3 is when admin and n00b policies are written to vault
 # and mapped out to their respective teams
 #
+
+# github team name variables w/ defaults
+: ${GITHUB_TEAM_1:=product}
+GITHUB_TEAM_1_POLICY="$GITHUB_TEAM_1"-policy
+: ${GITHUB_TEAM_2:=support}
+GITHUB_TEAM_2_POLICY="$GITHUB_TEAM_2"-policy
+
+authn_write_team_policy() {
+  local TEAM1="$1"
+  local TEAM2="$2"
+  local POLICY_FILE="$POLICY_DIR/$TEAM1-policy.hcl"
+
+  echo "Writing policy file for $TEAM1 to $POLICY_FILE"
+cat << EOF > "$POLICY_FILE"
+path "secret/$TEAM1/*" {
+  capabilities = ["create", "read", "delete", "list", "update"]
+}
+
+path "secret/$TEAM2/shared" {
+  capabilities = ["read", "list"]
+}
+EOF
+
+}
+
 authn_define_policy() {
   # this function checks a policy file and writes it into vault
   # assignment is done later
-  local POLICY_NAME=$1
-  local POLICY_FILE=$2
-  # exit if the policy document is missing
-  [[ ! -e "$POLICY_FILE" ]] && exit
-  echo "Check and write the $POLICY_NAME policy"
+  local TEAM1=$1
+  local TEAM2=$2
+  local POLICY_FILE="$POLICY_DIR/$TEAM1-policy.hcl"
+
+  # write the policy document
+  authn_write_team_policy() {
+  # exit if the policy file is missing
+  [[ ! -e "$POLICY_FILE" ]] && echo "$POLICY_FILE is non-existent, aborting" && exit
   vault policy fmt "$POLICY_FILE"
-  vault policy write "$POLICY_NAME" "$POLICY_FILE"
+  vault policy write "$TEAM1" "$POLICY_FILE"
   echo
 }
 
 github_authn_map_policy() {
   # this function assigns a team's policy
-  local TEAM_NAME=$1
-  local POLICY_NAME=$1
-  echo "Assign the $POLICY_NAME policy to the $TEAM_NAME team from the GitHub configured organization"
-  vault write auth/github/map/teams/"$TEAM_NAME" value=default,"$POLICY_NAME"
+  local TEAM=$1
+  echo "Assign the $TEAM policy to the $TEAM team from the GitHub configured organization"
+  vault write auth/github/map/teams/"$TEAM" value=default,"$TEAM"
   echo
 }
 
-phase3() {
-  # set a new policy called admin-policy and assign the admin-policy.hcl document
-  authn_define_policy admin-policy "$POLICY_DIR"/admin-policy.hcl
-  # map the policy to the github team named "admin"
-  github_authn_map_policy admin admin-policy
 
-  # same goes for the n00bs
-  authn_define_policy n00bs-policy "$POLICY_DIR"/n00bs-policy.hcl
-  github_authn_map_policy n00bs n00bs-policy
+phase3() {
+  # set a new policy for $GITHUB_TEAM_1 and map that policy
+  authn_define_policy "$GITHUB_TEAM_1" "$GITHUB_TEAM_2"
+  github_authn_map_policy "$GITHUB_TEAM_1"
+
+  # same goes for the team 2
+  authn_define_policy "$GITHUB_TEAM_2" "$GITHUB_TEAM_1"
+  github_authn_map_policy "$GITHUB_TEAM_2"
 }
 # end of phase 3
 
 #
 # phase 4 - Try it out!
 #
-authn_github_login() {
+authn_github_team() {
+  local TEAM="$1"
+  echo
+  echo 'You would have assign different 2 different GitHub users into 2 different teams for the preceeding exercises'
+  echo
+  echo "Let's try logging in as a user that belongs to $TEAM"
   echo 'You must create a Github token before attempting to login'
   echo 'https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/'
   vault login -method=github
   echo
-}
-
-authz_write_secret() {
-   echo 'Running this should work: `vault write secret/n00bs/am_i_a_n00b value=yes`'
-   echo 'Runnng this should work: `vault list secret/n00bs`'
-   echo
-}
-
-authz_write_fail() {
-   echo 'Writing to restricted path would fail'
-   echo 'Running this would fail: `vault write secret/supersecruds`'
-   echo
+  echo "As a GitHub user that belongs to $TEAM: "
+  echo 'Running this command should work: '
+  echo "     `vault write secret/$TEAM/$TEAM-secret value=for-$TEAM-members-only`"
+  echo 'Writing to restricted path would fail: '
+  echo 'Running this would fail: '
+  echo "      `vault write secret/restricted-area/$TEAM-secret value=shhh`"
+  echo
 }
 
 phase4(){
-  authn_github_login
-  authz_write_secret
-  authz_write_fail
+  authn_github_team "$GITHUB_TEAM_1"
+  authn_github_team "$GITHUB_TEAM_2"
 }
 # end of phase 4
 
@@ -354,7 +382,7 @@ approle_login() {
   echo
 }
 
-approle_read_login() {
+approle_set_login_token() {
   local ROLE_NAME=$1
   local LOGIN_RESPONSE_FILE=".$ROLE_NAME-approle-login.json"
   local CLIENT_TOKEN_FILE==".$ROLE_NAME-approle.token"
@@ -366,11 +394,11 @@ phase7() {
   # fetch admin secret id, log and save token
   approle_fetch_secretid "$APPROLE_ADMIN_NAME" "$APPROLE_ADMIN_SECRETID"
   approle_login "$APPROLE_ADMIN_NAME"
-  approle_read_login "$APPROLE_ADMIN_NAME"
+  approle_set_login_token "$APPROLE_ADMIN_NAME"
   # fetch client secret id, log and save token
   approle_fetch_secretid "$APPROLE_CLIENT_NAME" "$APPROLE_CLIENT_SECRETID"
   approle_login "$APPROLE_CLIENT_NAME"
-  approle_read_login "$APPROLE_CLIENT_NAME"
+  approle_set_login_token "$APPROLE_CLIENT_NAME"
 }
 
 
