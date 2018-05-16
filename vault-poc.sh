@@ -31,16 +31,42 @@ SECRET=.operator.secret
 # phase 1 is the initialization phase
 #
 start_consul_dev() {
+  which consul &> /dev/null
+  local HAS_CONSUL=$?
+  (("$HAS_CONSUL" > 0)) && echo "No consul binary found in $PATH" && exit
+
   echo 'Starting Dev Consul Instance'
   # start a consule dev server
   # pushing all output to a log file
   # and writing the process id (represented by $!) into a file
-  consul agent -dev &> "$LOG_DIR"/consul.dev.log & echo $! > "$CONSUL_PID"
+  consul agent -dev &> "$LOG_DIR"/consul.dev.log &
+
+  local PID=$(pgrep consul)
+
+  if [[ -z "$PID" ]]; then
+    echo "Consul is not running. Aborting"
+    exit
+  else
+    echo -n "$PID" > "$CONSUL_PID"
+  fi
 }
 
 start_vault() {
+  which vault &> /dev/null
+  local HAS_VAULT=$?
+  (("$HAS_VAULT" > 0)) && echo "No vault binary found in $PATH" && exit
+
   echo 'Starting Vault Server'
-  vault server -config=vaultconfig.hcl &> "$LOG_DIR"/vault.poc.log & echo $! > "$VAULT_PID"
+  vault server -config=vaultconfig.hcl &> "$LOG_DIR"/vault.poc.log &
+
+  local PID=$(pgrep vault)
+
+  if [[ -z "$PID" ]]; then
+    echo "Vault is not running. Aborting"
+    exit
+  else
+    echo -n "$PID" > "$VAULT_PID"
+  fi
 }
 
 init_vault() {
@@ -136,13 +162,13 @@ phase1() {
 : ${GITHUB_ORG:="hobodevops"}
 
 authn_enable_github() {
-  echo 'Enable GitHub authentication'
+  echo 'Enabling GitHub authentication'
   vault auth enable github
   echo
 }
 
 authn_define_github() {
-  echo 'Write GitHub organization config'
+  echo "Setting $GITHUB_ORG for GitHub authentication"
   vault write auth/github/config organization="$GITHUB_ORG"
   echo
 }
@@ -169,7 +195,8 @@ authn_write_team_policy() {
   local TEAM2="$2"
   local POLICY_FILE="$POLICY_DIR/$TEAM1-policy.hcl"
 
-  echo "Writing policy file for $TEAM1 to $POLICY_FILE"
+  echo "Writing policy file for $TEAM1 team to $POLICY_FILE"
+
 cat << EOF > "$POLICY_FILE"
 path "secret/$TEAM1/*" {
   capabilities = ["create", "read", "delete", "list", "update"]
@@ -179,7 +206,6 @@ path "secret/$TEAM2/shared" {
   capabilities = ["read", "list"]
 }
 EOF
-
 }
 
 authn_define_policy() {
@@ -190,7 +216,7 @@ authn_define_policy() {
   local POLICY_FILE="$POLICY_DIR/$TEAM1-policy.hcl"
 
   # write the policy document
-  authn_write_team_policy() {
+  authn_write_team_policy $TEAM1 $TEAM2
   # exit if the policy file is missing
   [[ ! -e "$POLICY_FILE" ]] && echo "$POLICY_FILE is non-existent, aborting" && exit
   vault policy fmt "$POLICY_FILE"
@@ -201,7 +227,7 @@ authn_define_policy() {
 github_authn_map_policy() {
   # this function assigns a team's policy
   local TEAM=$1
-  echo "Assign the $TEAM policy to the $TEAM team from the GitHub configured organization"
+  echo "Assign the $TEAM policy to the $TEAM team from the $GITHUB_ORG organization"
   vault write auth/github/map/teams/"$TEAM" value=default,"$TEAM"
   echo
 }
@@ -224,8 +250,6 @@ phase3() {
 authn_github_team() {
   local TEAM="$1"
   echo
-  echo 'You would have assign different 2 different GitHub users into 2 different teams for the preceeding exercises'
-  echo
   echo "Let's try logging in as a user that belongs to $TEAM"
   echo 'You must create a Github token before attempting to login'
   echo 'https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/'
@@ -233,16 +257,19 @@ authn_github_team() {
   echo
   echo "As a GitHub user that belongs to $TEAM: "
   echo 'Running this command should work: '
-  echo "     `vault write secret/$TEAM/$TEAM-secret value=for-$TEAM-members-only`"
+  echo "    vault write secret/$TEAM/$TEAM-secret value=for-$TEAM-members-only"
+  echo
   echo 'Writing to restricted path would fail: '
   echo 'Running this would fail: '
-  echo "      `vault write secret/restricted-area/$TEAM-secret value=shhh`"
+  echo "    vault write secret/restricted-area/$TEAM-secret value=shhh"
   echo
 }
 
 phase4(){
+  echo 'Exercise requirements: '
+  echo 'Create two different GitHub users'
+  echo "Assign one user to $GITHUB_TEAM_1 team and the other to $GITHUB_TEAM_2 team within the $GITHUB_ORG organization"
   authn_github_team "$GITHUB_TEAM_1"
-  authn_github_team "$GITHUB_TEAM_2"
 }
 # end of phase 4
 
@@ -250,16 +277,17 @@ phase4(){
 # phase 5 - AppRole
 #
 
-# define variables for role names and files where roleid and secretid
-# information will be saved
+# define variables for role names
+# this time there's an application admin and an application client
 
 # admin
-APPROLE_ADMIN_NAME="funapprolladmin"
+APPROLE_ADMIN_NAME="app-admin"
+
 # client
-APPROLE_CLIENT_NAME="funapprollclient"
+APPROLE_CLIENT_NAME="app-client"
 
 authn_enable_approle() {
-  echo 'Enable AppRole authentication'
+  echo 'Enabling AppRole authentication'
   vault auth enable approle
   echo
 }
@@ -267,7 +295,7 @@ authn_enable_approle() {
 approle_create_role() {
   # this function takes the first argument and assigns it to a local variable ROLE_NAME
   local ROLE_NAME="$1"
-  echo "Create an example application role: $ROLE_NAME"
+  echo "Creating an application role $ROLE_NAME and defining attributes"
   vault write auth/approle/role/"$ROLE_NAME" \
     secret_id_ttl=10m \
     token_num_uses=3 \
@@ -282,7 +310,7 @@ approle_fetch_roleid() {
   # the 2nd assignment is for the file where the role-id information is saved
   local ROLE_NAME="$1"
   local ROLE_ID_FILE=".$ROLE_NAME.role_id"
-  echo "Fetching RoleID: $ROLE_NAME"
+  echo "Fetching RoleID for $ROLE_NAME and storing the information into $ROLE_ID_FILE"
   # the fetched information is written both to stdout and a file using the tee ulititee
   vault read auth/approle/role/"$ROLE_NAME"/role-id | tee "$ROLE_ID_FILE"
   echo
@@ -293,7 +321,7 @@ approle_fetch_secretid() {
   # the 2nd assignment is for the file where the secret-id information is saved
   local ROLE_NAME="$1"
   local SECRET_ID_FILE=".$ROLE_NAME.secret_id"
-  echo "Fetching SecretID: $ROLE_NAME"
+  echo "Fetching SecretID for $ROLE_NAME and storing the information into $SECRET_ID_FILE"
   vault write -f auth/approle/role/"$ROLE_NAME"/secret-id | tee "$SECRET_ID_FILE"
   echo
 }
@@ -305,16 +333,23 @@ phase5() {
   authn_enable_approle
   # create the admin role first
   approle_create_role "$APPROLE_ADMIN_NAME"
+  sleep 3
   # fetch the admin's role-id and save it to a file
-  approle_fetch_roleid "$APPROLE_ADMIN_NAME" "$APPROLE_ADMIN_ROLEID"
+  approle_fetch_roleid "$APPROLE_ADMIN_NAME"
+  sleep 3
   # fetch the admin's secret-id and save it to a file
-  approle_fetch_secretid "$APPROLE_ADMIN_NAME" "$APPROLE_ADMIN_SECRETID"
+  approle_fetch_secretid "$APPROLE_ADMIN_NAME"
+  sleep 3
+
+
   # create the client role next
   approle_create_role "$APPROLE_CLIENT_NAME"
+  sleep 3
   # fetch the client's role-id and save it to a file
-  approle_fetch_roleid "$APPROLE_CLIENT_NAME" "$APPROLE_CLIENT_ROLEID"
+  approle_fetch_roleid "$APPROLE_CLIENT_NAME"
+  sleep 3
   # fetch the client's secret-id and save it to a file
-  approle_fetch_secretid "$APPROLE_CLIENT_NAME" "$APPROLE_CLIENT_SECRETID"
+  approle_fetch_secretid "$APPROLE_CLIENT_NAME"
 }
 # end of phase 5
 
@@ -322,7 +357,7 @@ phase5() {
 # phase 6 - AppRole and Authorization
 #
 
-# update the funapproll role policies
+# update the role policies
 approle_authn_assign_policy() {
   local APPROLE_NAME="$1"
   local POLICY_NAME="$2"
@@ -331,7 +366,7 @@ approle_authn_assign_policy() {
   echo
 }
 
-# check the current list of polices for the funapproll role
+# check the current list of policies for the role
 approle_authn_check_policy() {
   local APPROLE_NAME="$1"
   echo "Read attributes of the $APPROLE_NAME, check if the policy list correctness"
@@ -406,13 +441,17 @@ phase7() {
 # helper functions
 #
 stop_consul_dev() {
-  kill -9 $(cat "$CONSUL_PID")
-  [[ -e "$CONSUL_PID" ]] && rm "$CONSUL_PID"
+  if [[ -e "$CONSUL_PID" ]]; then
+    kill -9 $(cat "$CONSUL_PID")
+    rm "$CONSUL_PID"
+  fi
 }
 
 stop_vault() {
-  kill -9 $(cat "$VAULT_PID")
-  [[ -e "$VAULT_PID" ]] && rm "$VAULT_PID"
+  if [[ -e "$VAULT_PID" ]]; then
+    kill -9 $(cat "$VAULT_PID")
+    rm "$VAULT_PID"
+  fi
 }
 
 stop() {

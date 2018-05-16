@@ -5,6 +5,7 @@
 **/*.secret*
 **/.token
 **/.funapproll*
+policies/*
 .token*
 .secret*
 .*secret*
