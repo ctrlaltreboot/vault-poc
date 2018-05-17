@@ -14,13 +14,14 @@ Requirements
 ------------
 - You need to install Consul
 - You need to install Vault
-- You'd need to create a Github Organization with corresponding teams that
-  will be defined authorization policies.
-- The script here uses the `hobodevops` organization with policies defined
-  for `admin` and `n00bs` teams that exist in said organization.
+- You'd need to create a Github Organization with corresponding example
+  teams that will be defined in authorization policies.
+  - Defaults:
+      - Organization: `hobodevops`
+      - Policies defined for `admin` and `n00bs` teams that pre-exist in said organization.
 - You would have to also generate a GitHub [personal access
   token](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line)
-  This is used un the authentication phase.
+  This is used in the authentication phase.
 
 Usage
 -----

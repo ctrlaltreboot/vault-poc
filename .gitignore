@@ -3,8 +3,9 @@
 **/.secret
 **/.secret*
 **/*.secret*
-**/.token
-**/.funapproll*
+**/.token*
+**/.approle*
+policies/*
 .token*
 .secret*
 .*secret*
