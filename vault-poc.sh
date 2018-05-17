@@ -190,19 +190,20 @@ GITHUB_TEAM_1_POLICY="$GITHUB_TEAM_1"-policy
 : ${GITHUB_TEAM_2:=support}
 GITHUB_TEAM_2_POLICY="$GITHUB_TEAM_2"-policy
 
-authn_write_team_policy() {
-  local TEAM1="$1"
-  local TEAM2="$2"
-  local POLICY_FILE="$POLICY_DIR/$TEAM1-policy.hcl"
+authn_write_policy() {
+  # an entity in this case can be a github team, and approle role, etc...
+  local ENTITY1="$1"
+  local ENTITY2="$2"
+  local POLICY_FILE="$POLICY_DIR/$ENTITY1-policy.hcl"
 
-  echo "Writing policy file for $TEAM1 team to $POLICY_FILE"
+  echo "Writing policy file for $ENTITY1 to $POLICY_FILE"
 
 cat << EOF > "$POLICY_FILE"
-path "secret/$TEAM1/*" {
+path "secret/$ENTITY1/*" {
   capabilities = ["create", "read", "delete", "list", "update"]
 }
 
-path "secret/$TEAM2/shared" {
+path "secret/$ENTITY2/shared" {
   capabilities = ["read", "list"]
 }
 EOF
@@ -211,16 +212,16 @@ EOF
 authn_define_policy() {
   # this function checks a policy file and writes it into vault
   # assignment is done later
-  local TEAM1=$1
-  local TEAM2=$2
-  local POLICY_FILE="$POLICY_DIR/$TEAM1-policy.hcl"
+  local ENTITY1=$1
+  local ENTITY2=$2
+  local POLICY_FILE="$POLICY_DIR/$ENTITY1-policy.hcl"
 
   # write the policy document
-  authn_write_team_policy $TEAM1 $TEAM2
+  authn_write_policy $ENTITY1 $ENTITY2
   # exit if the policy file is missing
   [[ ! -e "$POLICY_FILE" ]] && echo "$POLICY_FILE is non-existent, aborting" && exit
   vault policy fmt "$POLICY_FILE"
-  vault policy write "$TEAM1" "$POLICY_FILE"
+  vault policy write "$ENTITY1" "$POLICY_FILE"
   echo
 }
 
@@ -231,7 +232,6 @@ github_authn_map_policy() {
   vault write auth/github/map/teams/"$TEAM" value=default,"$TEAM"
   echo
 }
-
 
 phase3() {
   # set a new policy for $GITHUB_TEAM_1 and map that policy
@@ -278,13 +278,27 @@ phase4(){
 #
 
 # define variables for role names
-# this time there's an application admin and an application client
-
+# default is that there's an application admin and an application client
 # admin
-APPROLE_ADMIN_NAME="app-admin"
-
+APPROLE1="app-admin"
 # client
-APPROLE_CLIENT_NAME="app-client"
+APPROLE2="app-client"
+
+# define directories and file paths for storage of approle outputs
+APPROLE_DIR="$(pwd)/.approle"
+[[ ! -e "$APPROLE_DIR" ]] && mkdir -pv "$APPROLE_DIR"
+
+approle_set_roleid_file() {
+  local ROLE="$1"
+  local ROLE_ID_FILE="$APPROLE_DIR/.$ROLE-role-id"
+  echo -n "$ROLE_ID_FILE"
+}
+
+approle_set_secretid_file() {
+  local ROLE="$1"
+  local SECRET_ID_FILE="$APPROLE_DIR/.$ROLE-secret-id"
+  echo -n "$SECRET_ID_FILE"
+}
 
 authn_enable_approle() {
   echo 'Enabling AppRole authentication'
@@ -293,10 +307,10 @@ authn_enable_approle() {
 }
 
 approle_create_role() {
-  # this function takes the first argument and assigns it to a local variable ROLE_NAME
-  local ROLE_NAME="$1"
-  echo "Creating an application role $ROLE_NAME and defining attributes"
-  vault write auth/approle/role/"$ROLE_NAME" \
+  # this function takes the first argument and assigns it to a local variable ROLE
+  local ROLE="$1"
+  echo "Creating an application role $ROLE and defining attributes"
+  vault write auth/approle/role/"$ROLE" \
     secret_id_ttl=10m \
     token_num_uses=3 \
     token_ttl=20m \
@@ -306,23 +320,23 @@ approle_create_role() {
 }
 
 approle_fetch_roleid() {
-  # this function takes 2 arguments, the 1st assigned to a local variable ROLE_NAME
+  # this function takes 2 arguments, the 1st assigned to a local variable ROLE
   # the 2nd assignment is for the file where the role-id information is saved
-  local ROLE_NAME="$1"
-  local ROLE_ID_FILE=".$ROLE_NAME.role_id"
-  echo "Fetching RoleID for $ROLE_NAME and storing the information into $ROLE_ID_FILE"
+  local ROLE="$1"
+  local ROLE_ID_FILE="$(approle_set_roleid_file $ROLE)"
+  echo "Fetching RoleID for $ROLE and storing the information into $ROLE_ID_FILE"
   # the fetched information is written both to stdout and a file using the tee ulititee
-  vault read auth/approle/role/"$ROLE_NAME"/role-id | tee "$ROLE_ID_FILE"
+  vault read auth/approle/role/"$ROLE"/role-id | tee "$ROLE_ID_FILE"
   echo
 }
 
 approle_fetch_secretid() {
-  # this function takes 2 arguments, the 1st assigned to a local variable ROLE_NAME
+  # this function takes 2 arguments, the 1st assigned to a local variable ROLE
   # the 2nd assignment is for the file where the secret-id information is saved
-  local ROLE_NAME="$1"
-  local SECRET_ID_FILE=".$ROLE_NAME.secret_id"
-  echo "Fetching SecretID for $ROLE_NAME and storing the information into $SECRET_ID_FILE"
-  vault write -f auth/approle/role/"$ROLE_NAME"/secret-id | tee "$SECRET_ID_FILE"
+  local ROLE="$1"
+  local SECRET_ID_FILE="$(approle_set_secretid_file $ROLE)"
+  echo "Fetching SecretID for $ROLE and storing the information into $SECRET_ID_FILE"
+  vault write -f auth/approle/role/"$ROLE"/secret-id | tee "$SECRET_ID_FILE"
   echo
 }
 
@@ -332,24 +346,24 @@ phase5() {
   autologin
   authn_enable_approle
   # create the admin role first
-  approle_create_role "$APPROLE_ADMIN_NAME"
+  approle_create_role "$APPROLE1"
   sleep 3
   # fetch the admin's role-id and save it to a file
-  approle_fetch_roleid "$APPROLE_ADMIN_NAME"
+  approle_fetch_roleid "$APPROLE1"
   sleep 3
   # fetch the admin's secret-id and save it to a file
-  approle_fetch_secretid "$APPROLE_ADMIN_NAME"
+  approle_fetch_secretid "$APPROLE1"
   sleep 3
 
 
   # create the client role next
-  approle_create_role "$APPROLE_CLIENT_NAME"
+  approle_create_role "$APPROLE2"
   sleep 3
   # fetch the client's role-id and save it to a file
-  approle_fetch_roleid "$APPROLE_CLIENT_NAME"
+  approle_fetch_roleid "$APPROLE2"
   sleep 3
   # fetch the client's secret-id and save it to a file
-  approle_fetch_secretid "$APPROLE_CLIENT_NAME"
+  approle_fetch_secretid "$APPROLE2"
 }
 # end of phase 5
 
@@ -359,35 +373,33 @@ phase5() {
 
 # update the role policies
 approle_authn_assign_policy() {
-  local APPROLE_NAME="$1"
-  local POLICY_NAME="$2"
-  echo "Updates the policies for the $APPROLE_NAME role"
-  vault write auth/approle/role/"$APPROLE_NAME"/policies policies=default,"$POLICY_NAME"
+  local ROLE="$1"
+  echo "Updates the policies for the $ROLE role"
+  vault write auth/approle/role/"$ROLE"/policies policies=default,"$ROLE"
   echo
 }
 
 # check the current list of policies for the role
 approle_authn_check_policy() {
-  local APPROLE_NAME="$1"
-  echo "Read attributes of the $APPROLE_NAME, check if the policy list correctness"
-  vault read auth/approle/role/"$APPROLE_NAME"
+  local ROLE="$1"
+  echo "Read attributes of the $ROLE, check if the policy list correctness"
+  vault read auth/approle/role/"$ROLE"
   echo
 }
 
 phase6() {
-  # funrollapp policy files definition
-  APPROLE_ADMIN_POLICY="$POLICY_DIR"/funapproll-admin.hcl
-  APPROLE_CLIENT_POLICY="$POLICY_DIR"/funapproll-client.hcl
+  # policy files definition
+  # use the same function in phase 3 to define polices for role1 and role2
+  authn_define_policy "$APPROLE1" "$APPROLE2"
 
   # set admin policy, assign admin policy to admin role then check
-  authn_define_policy "$APPROLE_ADMIN_NAME" "$APPROLE_ADMIN_POLICY"
-  approle_authn_assign_policy "$APPROLE_ADMIN_NAME" "$APPROLE_ADMIN_POLICY"
-  approle_authn_check_policy "$APPROLE_ADMIN_NAME"
+  approle_authn_assign_policy "$APPROLE1"
+  approle_authn_check_policy "$APPROLE1"
 
   # do the client next
-  authn_define_policy "$APPROLE_CLIENT_NAME" "$APPROLE_CLIENT_POLICY"
-  approle_authn_assign_policy "$APPROLE_CLIENT_NAME" "$APPROLE_CLIENT_POLICY"
-  approle_authn_check_policy "$APPROLE_CLIENT_NAME"
+  authn_define_policy "$APPROLE2" "$APPROLE3"
+  approle_authn_assign_policy "$APPROLE2"
+  approle_authn_check_policy "$APPROLE2"
 }
 
 #
@@ -395,11 +407,23 @@ phase6() {
 # In this phase we simulate an "app" by interacting w/ the vault API
 # using curl. JSON responses are parsed by `jq` and should be installed
 #
+approle_set_login_file() {
+  local ROLE="$1"
+  local LOGIN_FILE="$APPROLE_DIR/.$ROLE-login.jsnson"
+  echo -n "$LOGIN_FILE"
+}
+
+approle_set_token_file() {
+  local ROLE="$1"
+  local TOKEN_FILE="$APPROLE_DIR/.$ROLE-token"
+  echo -n "$TOKEN_FILE"
+}
+
 approle_login() {
-  local ROLE_NAME=$1
-  local ROLE_ID_FILE=".$ROLE_NAME.role_id"
-  local SECRET_ID_FILE=".$ROLE_NAME.secret_id"
-  local LOGIN_RESPONSE_FILE=".$ROLE_NAME-approle-login.json"
+  local ROLE=$1
+  local ROLE_ID_FILE="$(approle_set_roleid_file $ROLE)"
+  local SECRET_ID_FILE="$(approle_set_secretid_file $ROLE)"
+  local LOGIN_FILE="$(approle_set_login_file $ROLE)"
 
   [[ ! -e "$ROLE_ID_FILE" ]] && exit
   ROLE_ID="$(tail -1 $ROLE_ID_FILE | awk '{print $2}' | xargs)"
@@ -412,28 +436,28 @@ approle_login() {
   curl -s \
     --request POST \
     --data '{"role_id":"'$ROLE_ID'","secret_id":"'$SECRET_ID'"}' \
-    http://127.0.0.1:8200/v1/auth/approle/login &> "$LOGIN_RESPONSE_FILE"
-  cat "$LOGIN_RESPONSE_FILE" | jq '.'
+    http://127.0.0.1:8200/v1/auth/approle/login &> "$LOGIN_FILE"
+  cat "$LOGIN_FILE" | jq '.'
   echo
 }
 
 approle_set_login_token() {
-  local ROLE_NAME=$1
-  local LOGIN_RESPONSE_FILE=".$ROLE_NAME-approle-login.json"
-  local CLIENT_TOKEN_FILE==".$ROLE_NAME-approle.token"
-  cat "$LOGIN_RESPONSE_FILE" | jq '. | .auth.client_token' | xargs | tee $CLIENT_TOKEN_FILE
+  local ROLE=$1
+  local LOGIN_FILE="$(approle_set_login_file $ROLE)"
+  local TOKEN_FILE="$(approle_set_token_file $ROLE)"
+  cat "$LOGIN_FILE" | jq '. | .auth.client_token' | xargs | tee $TOKEN_FILE
 }
 
 phase7() {
   # secret ids have ttl, so we need to re-fetch the secret_id
   # fetch admin secret id, log and save token
-  approle_fetch_secretid "$APPROLE_ADMIN_NAME" "$APPROLE_ADMIN_SECRETID"
-  approle_login "$APPROLE_ADMIN_NAME"
-  approle_set_login_token "$APPROLE_ADMIN_NAME"
+  approle_fetch_secretid "$APPROLE1"
+  approle_login "$APPROLE1"
+  approle_set_login_token "$APPROLE1"
   # fetch client secret id, log and save token
-  approle_fetch_secretid "$APPROLE_CLIENT_NAME" "$APPROLE_CLIENT_SECRETID"
-  approle_login "$APPROLE_CLIENT_NAME"
-  approle_set_login_token "$APPROLE_CLIENT_NAME"
+  approle_fetch_secretid "$APPROLE2"
+  approle_login "$APPROLE2"
+  approle_set_login_token "$APPROLE2"
 }
 
 
