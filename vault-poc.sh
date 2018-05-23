@@ -10,7 +10,6 @@ set -e
 
 # process id definition
 PID_DIR=$(pwd)/pids
-CONSUL_PID="$PID_DIR"/consul.pid
 VAULT_PID="$PID_DIR"/vault.pid
 
 # log directory definition
@@ -31,27 +30,6 @@ SECRET=.operator.secret
 #
 # phase 1 is the initialization phase
 #
-start_consul_dev() {
-  which consul &> /dev/null
-  local HAS_CONSUL=$?
-  (("$HAS_CONSUL" > 0)) && echo "No consul binary found in $PATH" && exit
-
-  echo 'Starting Dev Consul Instance'
-  # start a consule dev server
-  # pushing all output to a log file
-  # and writing the process id (represented by $!) into a file
-  consul agent -dev &> "$LOG_DIR"/consul.dev.log &
-
-  local PID=$(pgrep consul)
-
-  if [[ -z "$PID" ]]; then
-    echo "Consul is not running. Aborting"
-    exit
-  else
-    echo -n "$PID" > "$CONSUL_PID"
-  fi
-}
-
 start_vault() {
   which vault &> /dev/null
   local HAS_VAULT=$?
@@ -142,8 +120,6 @@ login() {
 }
 
 phase1() {
-  start_consul_dev
-  sleep 2
   start_vault
   sleep 2
   export VAULT_ADDR='http://127.0.0.1:8200'
@@ -301,7 +277,6 @@ phase5() {
 #
 
 # define variables for role names
-
 # default is that there's an application admin and an application client
 : ${APPROLE1:="app-admin"}
 : ${APPROLE2:="app-client"}
@@ -478,13 +453,6 @@ phase8() {
 #
 # helper functions
 #
-stop_consul_dev() {
-  if [[ -e "$CONSUL_PID" ]]; then
-    kill -9 $(cat "$CONSUL_PID")
-    rm "$CONSUL_PID"
-  fi
-}
-
 stop_vault() {
   if [[ -e "$VAULT_PID" ]]; then
     kill -9 $(cat "$VAULT_PID")
@@ -494,7 +462,6 @@ stop_vault() {
 
 stop() {
   stop_vault
-  stop_consul_dev
 }
 
 # decides what to run based on the command line
