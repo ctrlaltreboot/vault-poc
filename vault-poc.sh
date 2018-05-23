@@ -22,6 +22,7 @@ POLICY_DIR=$(pwd)/policies
 # create directories if they're missing
 [[ ! -e "$PID_DIR" ]] && mkdir -pv "$PID_DIR"
 [[ ! -e "$LOG_DIR" ]] && mkdir -pv "$LOG_DIR"
+[[ ! -e "$POLICY_DIR" ]] && mkdir -pv "$POLICY_DIR"
 
 # define where the operator initialization information
 # would be saved unto...
