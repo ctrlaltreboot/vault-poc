@@ -384,7 +384,7 @@ phase7() {
   approle_authn_check_policy "$APPROLE1"
 
   # do the client next
-  authn_define_policy "$APPROLE2" "$APPROLE3"
+  authn_define_policy "$APPROLE2" "$APPROLE1"
   approle_authn_assign_policy "$APPROLE2"
   approle_authn_check_policy "$APPROLE2"
 }
