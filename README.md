@@ -27,7 +27,13 @@ conform to your preferences.
 
 |Variable|Description|Default|
 |--------|-----------|-------|
+|`AUTO_UNSEAL`|Unseal vault automatically|`no`|
+|`AUTO_LOGIN`|Login using the initial root token|`no`|
 |`GITHUB_ORG`|Github Organization|`hobodevops`|
+|`GITHUB_TEAM_1`|GitHub example team numero uno|`product`|
+|`GITHUB_TEAM_2`|Second GitHub example team|`support`|
+|`APPROLE1`|First example role name|`app-admin`|
+|`APPROLE2`|2nd example role name|`app-client`|
 
 Usage
 -----
@@ -47,7 +53,7 @@ Phases
 - This phase ends with either instructions on how to manually unseal
   and  login with the initial root token displayed or auto-unsealing
   and auto-login w/ the root token. These are determined by the
-  environment variables `AUTOUNSEAL (default 'no')` and `AUTOLOGIN
+  environment variables `AUTO_UNSEAL (default 'no')` and `AUTO_LOGIN
   (default 'no')`
 
 ### Phase 2: GitHub Authentication
