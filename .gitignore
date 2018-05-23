@@ -12,3 +12,4 @@ policies/*
 .funapproll*
 .*roleid
 .*secretid
+**vault-storage

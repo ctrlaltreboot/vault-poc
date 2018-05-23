@@ -10,7 +10,6 @@ set -e
 
 # process id definition
 PID_DIR=$(pwd)/pids
-CONSUL_PID="$PID_DIR"/consul.pid
 VAULT_PID="$PID_DIR"/vault.pid
 
 # log directory definition
@@ -22,6 +21,7 @@ POLICY_DIR=$(pwd)/policies
 # create directories if they're missing
 [[ ! -e "$PID_DIR" ]] && mkdir -pv "$PID_DIR"
 [[ ! -e "$LOG_DIR" ]] && mkdir -pv "$LOG_DIR"
+[[ ! -e "$POLICY_DIR" ]] && mkdir -pv "$POLICY_DIR"
 
 # define where the operator initialization information
 # would be saved unto...
@@ -30,27 +30,6 @@ SECRET=.operator.secret
 #
 # phase 1 is the initialization phase
 #
-start_consul_dev() {
-  which consul &> /dev/null
-  local HAS_CONSUL=$?
-  (("$HAS_CONSUL" > 0)) && echo "No consul binary found in $PATH" && exit
-
-  echo 'Starting Dev Consul Instance'
-  # start a consule dev server
-  # pushing all output to a log file
-  # and writing the process id (represented by $!) into a file
-  consul agent -dev &> "$LOG_DIR"/consul.dev.log &
-
-  local PID=$(pgrep consul)
-
-  if [[ -z "$PID" ]]; then
-    echo "Consul is not running. Aborting"
-    exit
-  else
-    echo -n "$PID" > "$CONSUL_PID"
-  fi
-}
-
 start_vault() {
   which vault &> /dev/null
   local HAS_VAULT=$?
@@ -117,7 +96,7 @@ autounseal() {
 
 autologin() {
   set_secrets
-  echo 'Automatically login using the root token.'
+  echo 'DANGER: Automatically logging in via the root token.'
   echo 'DO NOT DO THIS IN PRODUCTION'
   vault login "$ROOT_SECRET"
   echo
@@ -141,8 +120,6 @@ login() {
 }
 
 phase1() {
-  start_consul_dev
-  sleep 2
   start_vault
   sleep 2
   export VAULT_ADDR='http://127.0.0.1:8200'
@@ -162,7 +139,9 @@ phase1() {
 : ${GITHUB_ORG:="hobodevops"}
 
 authn_enable_github() {
+  echo
   echo 'Enabling GitHub authentication'
+  echo 'You can only do this once on the default path...'
   vault auth enable github
   echo
 }
@@ -274,15 +253,33 @@ phase4(){
 # end of phase 4
 
 #
-# phase 5 - AppRole
+# phase 5 - Enable AppRole
+#
+authn_enable_approle() {
+  echo 'Enabling AppRole authentication'
+  echo 'You can only do this once on the default path...'
+  vault auth enable approle
+  echo
+}
+
+phase5() {
+  echo 'Re-logging with the root token to enable AppRole'
+  echo 'Do this via: vault login <root-token-here>'
+  echo
+  autologin
+  echo
+  authn_enable_approle
+}
+# end of phase 5
+
+#
+# phase 5 - Enable AppRole
 #
 
 # define variables for role names
 # default is that there's an application admin and an application client
-# admin
-APPROLE1="app-admin"
-# client
-APPROLE2="app-client"
+: ${APPROLE1:="app-admin"}
+: ${APPROLE2:="app-client"}
 
 # define directories and file paths for storage of approle outputs
 APPROLE_DIR="$(pwd)/.approle"
@@ -298,12 +295,6 @@ approle_set_secretid_file() {
   local ROLE="$1"
   local SECRET_ID_FILE="$APPROLE_DIR/.$ROLE-secret-id"
   echo -n "$SECRET_ID_FILE"
-}
-
-authn_enable_approle() {
-  echo 'Enabling AppRole authentication'
-  vault auth enable approle
-  echo
 }
 
 approle_create_role() {
@@ -340,11 +331,7 @@ approle_fetch_secretid() {
   echo
 }
 
-phase5() {
-  echo 'Re-login w/ the root token to enable AppRole'
-  echo 'vault login <root-token-here>'
-  autologin
-  authn_enable_approle
+phase6() {
   # create the admin role first
   approle_create_role "$APPROLE1"
   sleep 3
@@ -365,10 +352,10 @@ phase5() {
   # fetch the client's secret-id and save it to a file
   approle_fetch_secretid "$APPROLE2"
 }
-# end of phase 5
+# end of phase 6
 
 #
-# phase 6 - AppRole and Authorization
+# phase 7 - AppRole and Authorization
 #
 
 # update the role policies
@@ -387,7 +374,7 @@ approle_authn_check_policy() {
   echo
 }
 
-phase6() {
+phase7() {
   # policy files definition
   # use the same function in phase 3 to define polices for role1 and role2
   authn_define_policy "$APPROLE1" "$APPROLE2"
@@ -401,15 +388,16 @@ phase6() {
   approle_authn_assign_policy "$APPROLE2"
   approle_authn_check_policy "$APPROLE2"
 }
+# end of phase 7
 
 #
-# phase 7 - AppRole Test
-# In this phase we simulate an "app" by interacting w/ the vault API
-# using curl. JSON responses are parsed by `jq` and should be installed
+# phase 8 - AppRole Login token
+# In this phase we simulate getting a login token using curl.
+# JSON responses are parsed by `jq` and should be installed
 #
 approle_set_login_file() {
   local ROLE="$1"
-  local LOGIN_FILE="$APPROLE_DIR/.$ROLE-login.jsnson"
+  local LOGIN_FILE="$APPROLE_DIR/.$ROLE-login.json"
   echo -n "$LOGIN_FILE"
 }
 
@@ -448,7 +436,7 @@ approle_set_login_token() {
   cat "$LOGIN_FILE" | jq '. | .auth.client_token' | xargs | tee $TOKEN_FILE
 }
 
-phase7() {
+phase8() {
   # secret ids have ttl, so we need to re-fetch the secret_id
   # fetch admin secret id, log and save token
   approle_fetch_secretid "$APPROLE1"
@@ -459,18 +447,12 @@ phase7() {
   approle_login "$APPROLE2"
   approle_set_login_token "$APPROLE2"
 }
+# end of phase 8
 
 
 #
 # helper functions
 #
-stop_consul_dev() {
-  if [[ -e "$CONSUL_PID" ]]; then
-    kill -9 $(cat "$CONSUL_PID")
-    rm "$CONSUL_PID"
-  fi
-}
-
 stop_vault() {
   if [[ -e "$VAULT_PID" ]]; then
     kill -9 $(cat "$VAULT_PID")
@@ -480,7 +462,6 @@ stop_vault() {
 
 stop() {
   stop_vault
-  stop_consul_dev
 }
 
 # decides what to run based on the command line
@@ -510,8 +491,11 @@ case "$1" in
   phase7)
     phase7
     ;;
+  phase8)
+    phase8
+    ;;
   *)
-    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5|phase6|phase7}"
+    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5|phase6|phase7|phase8}"
     exit
     ;;
 esac
