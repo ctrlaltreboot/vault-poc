@@ -23,35 +23,33 @@ POLICY_DIR=$(pwd)/policies
 [[ ! -e "$LOG_DIR" ]] && mkdir -pv "$LOG_DIR"
 [[ ! -e "$POLICY_DIR" ]] && mkdir -pv "$POLICY_DIR"
 
-# define where the operator initialization information
-# would be saved unto...
-SECRET=.operator.secret
+# define where the operator initialization
+# information would be saved to...
+SECRET=.operator-init.secret
 
 #
 # phase 1 is the initialization phase
 #
 start_vault() {
-  which vault &> /dev/null
-  local HAS_VAULT=$?
-  (("$HAS_VAULT" > 0)) && echo "No vault binary found in $PATH" && exit
+  if ! $(has_command vault); then
+    echo "No vault binary found in $PATH"
+    exit
+  fi
 
-  echo 'Starting Vault Server'
+  echo 'Starting vault server...'
   vault server -config=vaultconfig.hcl &> "$LOG_DIR"/vault.poc.log &
 
-  local PID=$(pgrep vault)
-
-  if [[ -z "$PID" ]]; then
-    echo "Vault is not running. Aborting"
+  if [[ -z "$(get_pid vault)" ]]; then
+    echo "Vault start failed..."
     exit
-  else
-    echo -n "$PID" > "$VAULT_PID"
   fi
 }
 
 init_vault() {
   echo 'Operator Initialization on Vault Server'
   # save all operation initialization information into a file
-  vault operator init &> $SECRET
+  vault operator init &> "$LOG_DIR"/"$SECRET"
+  cp "$LOG_DIR"/"$SECRET" "$SECRET"
 }
 
 set_secrets() {
@@ -454,21 +452,47 @@ phase8() {
 # helper functions
 #
 stop_vault() {
-  if [[ -e "$VAULT_PID" ]]; then
-    kill -9 $(cat "$VAULT_PID")
-    rm "$VAULT_PID"
+  local PID="$(get_pid vault)"
+  if [[ -n "$PID" ]]; then
+    kill -9 "$PID"
+    SUX=$?
+    if [[ "$SUX" == "0" ]];  then
+      echo "Vault server has been stopped..."
+    else
+      echo "Nothing to stop. Vault server is not running..."
+    fi
+  else
+    echo "Nothing to stop. Vault server is not running..."
   fi
 }
 
-stop() {
-  stop_vault
+has_command() {
+  local CMD="$1"
+  [[ -n "$(command -v "$CMD")" ]]
+}
+
+get_pid() {
+  local CMD="$1"
+  local PID=$(pgrep "$CMD")
+
+  if [[ -z "$PID" ]]; then
+    echo
+  else
+    echo -n "$PID"
+  fi
 }
 
 # decides what to run based on the command line
 # argument passed to the script
 case "$1" in
+  start)
+    start_vault
+    ;;
   stop)
-    stop
+    stop_vault
+    ;;
+  unseal)
+    autounseal
     ;;
   phase1)
     phase1
@@ -495,7 +519,7 @@ case "$1" in
     phase8
     ;;
   *)
-    echo $"Usage $0 {stop|phase1|phase2|phase3|phase4|phase5|phase6|phase7|phase8}"
+    echo $"Usage $0 {stop|start|unseal|phase1|phase2|phase3|phase4|phase5|phase6|phase7|phase8}"
     exit
     ;;
 esac
