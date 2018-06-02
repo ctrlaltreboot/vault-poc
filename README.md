@@ -41,7 +41,7 @@ The script is intended to be run at a linear fashion in what's called
 phases. A particular phase would describe a vault operation scenario.
 
 ```
-./vault-poc.sh <phase>
+./vaultaire <phase>
 ```
 
 Phases
