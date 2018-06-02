@@ -1,4 +1,4 @@
-# vault-poc
+# vaultaire
 This is an attempt to capture the initial stages of learning and
 operating HashiCorp Vault.
 
