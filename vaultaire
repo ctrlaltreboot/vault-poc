@@ -230,7 +230,9 @@ authn_github_team() {
   echo "Let's try logging in as a user that belongs to $TEAM"
   echo 'You must create a Github token before attempting to login'
   echo 'https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/'
-  vault login -method=github
+  echo 'Save your token as `.token`, it will be Git ignored.'
+  TOKEN=$(cat .token)
+  vault login -method=github token=$TOKEN
   echo
   echo "As a GitHub user that belongs to $TEAM: "
   echo 'Running this command should work: '
@@ -473,7 +475,13 @@ has_command() {
 
 get_pid() {
   local CMD="$1"
-  local PID=$(pgrep "$CMD")
+  local PID_FILE=$PID_DIR/$CMD.pid
+
+  if [[ -f $PID_FILE ]]; then
+    local PID=$(cat $PID_FILE)
+  else
+    local PID=$(pgrep "$CMD")
+  fi
 
   if [[ -z "$PID" ]]; then
     echo
