@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-source ./shared.sh
+SCRIPT_DIR=$(dirname $0)
+source "$SCRIPT_DIR"/shared.sh
 
 #
 # AppRole and Authorization

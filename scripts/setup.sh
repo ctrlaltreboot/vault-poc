@@ -3,7 +3,8 @@
 # exit whenever any errors come up
 set -e
 
-source ./helpers.sh
+SCRIPT_DIR=$(dirname $0)
+source "$SCRIPT_DIR"/helpers.sh
 
 # autounseal?
 : ${AUTO_UNSEAL:='yes'}

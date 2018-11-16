@@ -2,7 +2,8 @@
 
 set -e
 
-source ./shared.sh
+SCRIPT_DIR=$(dirname $0)
+source "$SCRIPT_DIR"/shared.sh
 
 #
 # github policies are written to vault
