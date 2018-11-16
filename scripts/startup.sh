@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # exit whenever any errors come up
-set -e
+set -eu
 
 SCRIPT_DIR=$(dirname $0)
 source "$SCRIPT_DIR"/helpers.sh
@@ -31,7 +31,7 @@ POLICY_DIR=$(pwd)/policies
 SECRET=.operator-init.secret
 
 init_vault() {
-  echo 'Operator Initialization on Vault Server'
+  echo 'Operator initialization on Vault server'
   # save all operation initialization information into a file
   vault operator init &> "$LOG_DIR"/"$SECRET"
   cp "$LOG_DIR"/"$SECRET" "$SECRET"
@@ -93,10 +93,15 @@ unseal() {
   fi
 }
 
+stop_vault
 start_vault
 sleep 2
 export VAULT_ADDR='http://127.0.0.1:8200'
-init_vault
+if [[ -d $(pwd)/vault-storage ]]; then
+  echo "Vault has already been initialized, skipping initialization"
+else
+  init_vault
+fi
 sleep 3
 unseal
 
