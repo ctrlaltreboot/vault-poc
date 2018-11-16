@@ -27,7 +27,7 @@ linear fashion, depending on purpose.
 Scripts and possible workflows
 ------------------------------
 
-### Server startup and initialization with `scripts/setup.sh`
+### Server startup and initialization with `scripts/startup.sh`
 - An instance of Vault is started
 - Vault is operationally initialized
 - The script simulates the unsealing of logging in of a root user into
