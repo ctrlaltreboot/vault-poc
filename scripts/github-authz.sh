@@ -12,6 +12,7 @@ authn_github_team() {
   echo 'https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/'
   echo 'Save your token as `.token`, it will be Git ignored.'
   TOKEN=$(cat .token)
+  echo "Running: vault login -method=github token=$TOKEN"
   vault login -method=github token=$TOKEN
   echo
   echo "As a GitHub user that belongs to $TEAM: "

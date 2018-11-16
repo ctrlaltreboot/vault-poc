@@ -20,6 +20,7 @@ github_authn_map_policy() {
   # this function assigns a team's policy
   local TEAM=$1
   echo "Assign the $TEAM policy to the $TEAM team from the $GITHUB_ORG organization"
+  echo "Running: vault write auth/github/map/teams/"$TEAM" value=default,$TEAM"
   vault write auth/github/map/teams/"$TEAM" value=default,"$TEAM"
   echo
 }

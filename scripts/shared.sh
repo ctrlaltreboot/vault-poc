@@ -25,10 +25,13 @@ authn_define_policy() {
   local POLICY_FILE="$POLICY_DIR/$ENTITY1-policy.hcl"
 
   # write the policy document
+  echo "Running: authn_write_policy $ENTITY1 $ENTITY2"
   authn_write_policy $ENTITY1 $ENTITY2
   # exit if the policy file is missing
   [[ ! -e "$POLICY_FILE" ]] && echo "$POLICY_FILE is non-existent, aborting" && exit
+  echo "Running: vault policy fmt $POLICY_FILE"
   vault policy fmt "$POLICY_FILE"
+  echo "Running: vault policy write $ENTITY1 $POLICY_FILE"
   vault policy write "$ENTITY1" "$POLICY_FILE"
   echo
 }
