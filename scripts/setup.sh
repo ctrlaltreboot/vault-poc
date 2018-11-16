@@ -6,9 +6,9 @@ set -e
 source ./helpers.sh
 
 # autounseal?
-: ${AUTO_UNSEAL:='no'}
+: ${AUTO_UNSEAL:='yes'}
 # autologin?
-: ${AUTO_LOGIN:='no'}
+: ${AUTO_LOGIN:='yes'}
 
 # process id definition
 PID_DIR=$(pwd)/pids
@@ -91,7 +91,6 @@ unseal() {
     unseal_message
   fi
 }
-
 
 start_vault
 sleep 2
