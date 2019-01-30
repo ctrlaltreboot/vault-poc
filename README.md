@@ -21,8 +21,8 @@ Requirements
 
 Usage
 -----
-The scripts directory consists of sectional secripts that is intended to be run at a somewhat
-linear fashion, depending on purpose.
+The scripts directory consists of sectional scripts that is intended to be run, initially, in a
+linear fashion.
 
 Scripts and possible workflows
 ------------------------------
