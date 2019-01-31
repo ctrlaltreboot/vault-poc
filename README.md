@@ -2,8 +2,8 @@
 This is an attempt to capture the initial stages of learning and
 operating HashiCorp Vault.
 
-This is a practice interpretation of the [getting
-started](https://www.vaultproject.io/intro/getting-started/install.html)
+This is a practice interpretation of the
+[getting started](https://www.vaultproject.io/intro/getting-started/install.html)
 documentation done in a small script to help understand the first steps of
 operation. It is highly suggested that you read the fine manual before
 using this (or even using this at all).
@@ -15,78 +15,46 @@ Requirements
 - You need to install Vault
 - You'd need to create a Github Organization with example
   teams that will be defined in authorization policies.
-- You would have to also generate a GitHub [personal access
-  token](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line).
+- You would have to also generate a GitHub
+  [personal access token](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line).
   This is used in the authentication phase.
-
-Application Defaults
---------------------
-The script is riddled with values that can be overriden by setting
-specific environment variable which makes it easy for the script to
-conform to your preferences.
-
-|Variable|Description|Default|
-|--------|-----------|-------|
-|`AUTO_UNSEAL`|Unseal vault automatically|`no`|
-|`AUTO_LOGIN`|Login using the initial root token|`no`|
-|`GITHUB_ORG`|Github Organization|`hobodevops`|
-|`GITHUB_TEAM_1`|GitHub example team numero uno|`product`|
-|`GITHUB_TEAM_2`|Second GitHub example team|`support`|
-|`APPROLE1`|First example role name|`app-admin`|
-|`APPROLE2`|2nd example role name|`app-client`|
 
 Usage
 -----
-The script is intended to be run at a linear fashion in what's called
-phases. A particular phase would describe a vault operation scenario.
+The scripts directory consists of sectional scripts that is intended to be run, initially, in a
+linear fashion.
 
-```
-./vaultaire <phase>
-```
+Scripts and possible workflows
+------------------------------
 
-Phases
-------
-
-### Phase 1: Server Startup and Initialization
+### Server startup and initialization with `scripts/startup.sh`
 - An instance of Vault is started
 - Vault is operationally initialized
-- This phase ends with either instructions on how to manually unseal
-  and  login with the initial root token displayed or auto-unsealing
-  and auto-login w/ the root token. These are determined by the
-  environment variables `AUTO_UNSEAL (default 'no')` and `AUTO_LOGIN
-  (default 'no')`
+- The script simulates the unsealing of logging in of a root user into
+  an unsealed vault.
 
-### Phase 2: GitHub Authentication
-This is the authentication method enabling phase.
-- Enables GitHub authentication
-- Configures the organization in Github for authorization reference
+### GitHub based authentication and authorization
+- Authentication setup with `scripts/github-authn.sh`
+    - Enables GitHub authentication
+    - Configures the GitHub organization for authorization reference
+- Define GitHub team based access policies with `scripts/github-policies.sh`
+- Test user authorization with `scripts/github-authz.sh
 
-### Phase 3: Policies and Authorization
-- Generate, check and verify vault policies
-  for GitHub teams
-- Add and assign policies, mapped into
-  their corresponding GitHub teams
+### AppRole authentication and authorization
+- Enable AppRole authentication method with `scripts/approle-authn.sh`
+- Define AppRole roles and policies and  with `scripts/approle-authz.sh`
+- Mimic application interaction with Vault+AppRole with `scripts/approle-token.sh`
 
-### Phase 4: GitHub authentication practice
-- Trying out the GitHub authentication by logging using a GitHub
-  personal token in and trying out the commands echoed out
-- You're free to try out any other commands at this stage as vault is
-  already operational
-
-### Phase 5: Enable AppRole
-- Enable AppRole authentication method
-
-### Phase 6: AppRole Role Management
-- Create an example role
-- Fetch and show RoleID
-- Fetch and show SecretID
-
-### Phase 7:  AppRole Policy
-- Create and write new polices for AppRole roles
-- Attach new policies to an example role created in phase 5
-- Verify the newly created role and its attributes and if it has our pre-defined policy attached to it
-
-### Phase 8:  AppRole Login Token
-- Interact with Vault via `curl` and parse the JSON outputs via `jq`
-- Mimic an application fetching a login token
-
+TL;DR
+-----
+- Run `scripts/startup.sh` to start vault (auto unseal and auto login w/
+  root token)
+- Run `scripts/github-authn.sh` to enable GitHub authentication backend
+- Run `scripts/github-policies.sh` to define and assign policies for GitHub teams
+- Run `scripts/github-authz.sh` to test authorization via GitHub teams
+- Run `scripts/approle-authn.sh` to enable AppRole authentication
+  backend
+- Run `scripts/approle-authz.sh` to define and assign policies for
+  AppRole roles
+- Run `scripts/approle-token.sh` to test token based authentication on
+  the AppRole backend
