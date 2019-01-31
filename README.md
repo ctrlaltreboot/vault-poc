@@ -44,3 +44,17 @@ Scripts and possible workflows
 - Enable AppRole authentication method with `scripts/approle-authn.sh`
 - Define AppRole roles and policies and  with `scripts/approle-authz.sh`
 - Mimic application interaction with Vault+AppRole with `scripts/approle-token.sh`
+
+TL;DR
+-----
+- Run `scripts/startup.sh` to start vault (auto unseal and auto login w/
+  root token)
+- Run `scripts/github-authn.sh` to enable GitHub authentication backend
+- Run `scripts/github-policies.sh` to define and assign policies for GitHub teams
+- Run `scripts/github-authz.sh` to test authorization via GitHub teams
+- Run `scripts/approle-authn.sh` to enable AppRole authentication
+  backend
+- Run `scripts/approle-authz.sh` to define and assign policies for
+  AppRole roles
+- Run `scripts/approle-token.sh` to test token based authentication on
+  the AppRole backend
