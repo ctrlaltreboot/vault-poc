@@ -10,9 +10,11 @@ start_vault() {
 
   echo 'Starting vault server...'
   vault server -config=vaultconfig.hcl &> "$LOG_DIR"/vault.poc.log &
+  sleep 2
 
-  if [[ -z "$(get_pid vault)" ]]; then
-    echo "Vault start failed..."
+  local PID="$(get_pid vault)"
+  if [[ -z "$PID" ]]; then
+    echo "Vault PID not found. Startup might've failed..."
     exit
   fi
 }
