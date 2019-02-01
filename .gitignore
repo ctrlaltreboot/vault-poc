@@ -13,3 +13,6 @@ policies/*
 .*roleid
 .*secretid
 **vault-storage
+**/certs
+**/*.pem
+**/*.crt
