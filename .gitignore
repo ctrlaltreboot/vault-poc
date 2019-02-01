@@ -16,3 +16,4 @@ policies/*
 **/certs
 **/*.pem
 **/*.crt
+**/*aws*
