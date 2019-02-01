@@ -8,6 +8,9 @@ source "$SCRIPT_DIR"/shared.sh
 # AppRole and Authorization
 #
 
+: ${APPROLE1:=admin}
+: ${APPROLE2:=client}
+
 # update the role policies
 approle_authn_assign_policy() {
   local ROLE="$1"

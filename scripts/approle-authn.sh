@@ -35,10 +35,10 @@ approle_create_role() {
   local ROLE="$1"
   echo "Creating an application role $ROLE and defining attributes"
   vault write auth/approle/role/"$ROLE" \
-    secret_id_ttl=10m \
-    token_num_uses=3 \
-    token_ttl=20m \
-    token_max_ttl=30m \
+    secret_id_ttl=120m \
+    token_num_uses=20 \
+    token_ttl=60m \
+    token_max_ttl=240m \
     secret_id_num_uses=40
   echo
 }

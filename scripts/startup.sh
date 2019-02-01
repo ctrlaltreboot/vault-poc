@@ -21,8 +21,7 @@ source "$SCRIPT_DIR"/shared.sh
 init_vault() {
   echo 'Operator initialization on Vault server'
   # save all operation initialization information into a file
-  vault operator init &> "$LOG_DIR"/"$SECRET"
-  cp "$LOG_DIR"/"$SECRET" "$SECRET"
+  vault operator init &> "$SECRET"
 }
 
 unseal_message() {

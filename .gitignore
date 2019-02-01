@@ -3,7 +3,7 @@
 **/.secret
 **/.secret*
 **/*.secret*
-**/.token*
+**/.*token*
 **/.approle*
 policies/*
 .token*
